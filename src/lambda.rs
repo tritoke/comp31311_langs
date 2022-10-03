@@ -81,16 +81,18 @@ impl Term {
             let atom = bcVar.or(bracketed_term);
 
             let scApp = recursive(|app| {
-                atom.then(app.repeated()).map(|(left, mut terms)| {
-                    terms.insert(0, left);
+                atom.then(app.or_not()).map(|(left, terms)| {
+                    let mut terms = terms.unwrap_or_else(Vec::new);
+                    terms.push(left);
                     terms
                 })
             })
             .map(|v| {
                 v.into_iter()
+                    .rev()
                     .reduce(|a, b| Term::App(Box::new(a), Box::new(b)))
+                    .unwrap()
             });
-            // .to(Term::Var(Variable::new('z')));
 
             let scAbs = just('λ')
                 .ignore_then(Variable::parser())
@@ -194,7 +196,7 @@ mod tests {
             v.into_iter().reduce(|a, b| Term::App(Box::new(a), Box::new(b))).unwrap()
         }};
         (abs $v:tt $t:tt) => {
-            Term::Abs(Term::Var($v))
+            Term::Abs($v, Box::new($t))
         };
     }
 
@@ -260,8 +262,35 @@ mod tests {
         assert_eq!(s.parse::<Term>().unwrap(), correct);
     }
 
-    // fn test_awful() {
-    //     let s = "λw.w(λx.λy.λx.xbx)λx.x(λx.x)awy";
-    //     let correct = todo!();
-    // }
+    #[test]
+    fn test_abs_chain() {
+        let s = "λx.λy.λz.xyz";
+        vars!(x y z);
+        let (xt, yt, zt) = term!(vars x y z);
+        let app = term!(app xt yt zt);
+        let tmp1 = term!(abs z app);
+        let tmp2 = term!(abs y tmp1);
+        let correct = term!(abs x tmp2);
+        assert_eq!(s.parse::<Term>().unwrap(), correct);
+    }
+
+    #[test]
+    fn test_worksheet1() {
+        let s = "λw.w(λx.λy.λx.xbx)λx.x(λx.x)awy";
+
+        vars!(a b w x y z);
+
+        let (at, bt, wt, xt, yt, zt) = term!(vars a b w x y z);
+        let tmp = term!(app (xt.clone()) bt (xt.clone())); // xbx
+        let tmp = term!(abs x tmp); // λx.xbx
+        let tmp = term!(abs y tmp); // λy.λx.xbx
+        let left_brac = term!(abs x tmp); // λx.λy.λx.xbx
+        let right_brac = term!(abs x (xt.clone())); // λx.x
+        let right_abs_inner = term!(app xt right_brac at (wt.clone()) yt); // x(λx.x)awy
+        let right_abs = term!(abs x right_abs_inner); // x(λx.x)awy
+        let abs_inner = term!(app wt left_brac right_abs);
+        let correct = term!(abs w abs_inner);
+
+        assert_eq!(s.parse::<Term>().unwrap(), correct);
+    }
 }
