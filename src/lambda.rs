@@ -48,8 +48,6 @@ pub enum Term {
     Abs(Variable, Box<Term>),
     // scApp: tt'
     App(Box<Term>, Box<Term>),
-    // (t)
-    // Brac(Box<Term>),
 }
 
 impl fmt::Display for Term {
@@ -58,7 +56,6 @@ impl fmt::Display for Term {
             Term::Var(v) => write!(f, "{v}"),
             Term::Abs(v, t) => write!(f, "λ{v}.{t}"),
             Term::App(t1, t2) => write!(f, "{t1}{t2}"),
-            // Term::Brac(t) => write!(f, "({t})"),
         }
     }
 }
@@ -84,11 +81,16 @@ impl Term {
             let atom = bcVar.or(bracketed_term);
 
             let scApp = recursive(|app| {
-                atom.then(app.or_not()).map(|(atm, arg)| match arg {
-                    Some(arg) => Term::App(Box::new(atm), Box::new(arg)),
-                    None => atm,
+                atom.then(app.repeated()).map(|(left, mut terms)| {
+                    terms.insert(0, left);
+                    terms
                 })
+            })
+            .map(|v| {
+                v.into_iter()
+                    .reduce(|a, b| Term::App(Box::new(a), Box::new(b)))
             });
+            // .to(Term::Var(Variable::new('z')));
 
             let scAbs = just('λ')
                 .ignore_then(Variable::parser())
@@ -150,10 +152,7 @@ impl From<Term> for Expr {
                     expr.terms.insert(*t2.clone());
                     stack.push(*t1.clone());
                     stack.push(*t2.clone());
-                } // Term::Brac(t) => {
-                  //     expr.terms.insert(*t.clone());
-                  //     stack.push(*t.clone());
-                  // }
+                }
             }
         }
 
@@ -165,6 +164,39 @@ impl From<Term> for Expr {
 mod tests {
     use super::*;
     use Term::*;
+
+    macro_rules! vars {
+        ($name:ident) => {
+            let $name: Variable = Variable::parser().parse(stringify!($name)).unwrap();
+        };
+        ($($name:ident)*) => {
+            let (
+                $($name),*
+            ) = (
+                $(Variable::parser().parse(stringify!($name)).unwrap()),*
+            );
+        };
+    }
+
+    macro_rules! term {
+        (var $v:tt) => {
+            Term::Var($v)
+        };
+        (vars $($v:tt)*) => {
+            (
+                $( Term::Var($v) ),*
+            )
+        };
+        (app $($ts:tt)*) => {{
+            let v = Vec::from([
+                $($ts),*
+            ]);
+            v.into_iter().reduce(|a, b| Term::App(Box::new(a), Box::new(b))).unwrap()
+        }};
+        (abs $v:tt $t:tt) => {
+            Term::Abs(Term::Var($v))
+        };
+    }
 
     #[test]
     fn test_variable_parser() {
@@ -197,8 +229,7 @@ mod tests {
     #[test]
     fn test_basic_app() {
         let s = "xy";
-        let x = Variable::new('x');
-        let y = Variable::new('y');
+        vars!(x y);
         let correct = App(Box::new(Var(x)), Box::new(Var(y)));
         assert_eq!(s.parse::<Term>().unwrap(), correct);
     }
@@ -206,9 +237,26 @@ mod tests {
     #[test]
     fn test_basic_abs() {
         let s = "λx.y";
-        let x = Variable::new('x');
-        let y = Variable::new('y');
+        vars!(x y);
         let correct = Abs(x, Box::new(Var(y)));
+        assert_eq!(s.parse::<Term>().unwrap(), correct);
+    }
+
+    #[test]
+    fn test_app_chain_short() {
+        let s = "abc";
+        vars!(a b c);
+        let (a, b, c) = term!(vars a b c);
+        let correct = term!(app a b c);
+        assert_eq!(s.parse::<Term>().unwrap(), correct);
+    }
+
+    #[test]
+    fn test_app_chain() {
+        let s = "abcdef";
+        vars!(a b c d e f);
+        let (a, b, c, d, e, f) = term!(vars a b c d e f);
+        let correct = term!(app a b c d e f);
         assert_eq!(s.parse::<Term>().unwrap(), correct);
     }
 
