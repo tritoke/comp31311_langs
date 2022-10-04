@@ -1,5 +1,8 @@
-use lambda_parser::lambda::{Variable, Expr, Term};
+use lambda_parser::lambda::Term;
 
 fn main() {
-    println!("Hello, world!");
+    let s = "λw.w(λx.λy.λx.xbx)λx.x(λx.x)awy";
+    let t: Term = s.parse().unwrap();
+    println!("{}", t);
+    println!("{:#}", t);
 }

@@ -1,6 +1,7 @@
 use chumsky::{error::Simple, prelude::*, Parser};
 use std::collections::HashSet;
 use std::fmt;
+use std::fmt::Formatter;
 use std::hash::Hash;
 
 const ALPHABET: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -14,6 +15,7 @@ pub struct Variable {
     primes: u32,
 }
 
+#[allow(unused)]
 impl Variable {
     fn new(c: char) -> Self {
         Self { c, primes: 0 }
@@ -23,7 +25,7 @@ impl Variable {
         Self { c, primes }
     }
 
-    fn parser() -> impl Parser<char, Variable, Error = Simple<char>> {
+    fn parser() -> impl Parser<char, Variable, Error = Simple<char>> + Clone {
         one_of(ALPHABET)
             .then(just('\'').repeated())
             .map(|(c, v)| Variable {
@@ -50,57 +52,99 @@ pub enum Term {
     App(Box<Term>, Box<Term>),
 }
 
-impl fmt::Display for Term {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
+// struct to hold the left hand side of an application while formatting
+struct Left(Term);
+
+impl fmt::Display for Left {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match &self.0 {
             Term::Var(v) => write!(f, "{v}"),
             Term::Abs(v, t) => write!(f, "λ{v}.{t}"),
-            Term::App(t1, t2) => write!(f, "{t1}{t2}"),
+            Term::App(t1, t2) => {
+                let l1 = Left(*t1.clone());
+                let l2 = Left(*t2.clone());
+                match (t1.is_abs(), t2.is_abs()) {
+                    (true, true) => write!(f, "({l1})({l2})"),
+                    (true, false) => write!(f, "({l1}){l2}"),
+                    (false, true) => write!(f, "{l1}({l2})"),
+                    (false, false) => write!(f, "{l1}{l2}"),
+                }
+            }
         }
     }
 }
 
+impl fmt::Display for Term {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if f.alternate() {
+            // in the alternate representation fully bracket the expression
+            match self {
+                Term::Var(v) => write!(f, "{v}"),
+                Term::Abs(v, t) => write!(f, "(λ{v}.{t:#})"),
+                Term::App(t1, t2) => write!(f, "({t1:#}{t2:#})"),
+            }
+        } else {
+            match self {
+                Term::Var(v) => write!(f, "{v}"),
+                Term::Abs(v, t) => write!(f, "λ{v}.{t}"),
+                Term::App(t1, t2) => write!(f, "{}{t2}", Left(*t1.clone())),
+            }
+        }
+    }
+}
+
+#[allow(unused)]
 impl Term {
-    #[allow(non_snake_case)]
+    fn var(v: Variable) -> Self {
+        Self::Var(v)
+    }
+
+    fn abs(v: Variable, t: Term) -> Self {
+        Self::Abs(v, Box::new(t))
+    }
+
+    fn app(t1: Term, t2: Term) -> Self {
+        Self::App(Box::new(t1), Box::new(t2))
+    }
+
+    fn is_var(&self) -> bool {
+        matches!(self, Term::Var(_))
+    }
+
+    fn is_abs(&self) -> bool {
+        matches!(self, Term::Abs(_, _))
+    }
+
+    fn is_app(&self) -> bool {
+        matches!(self, Term::App(_, _))
+    }
+
     fn parser() -> impl Parser<char, Term, Error = Simple<char>> {
         recursive(|term| {
             // without left-recursion:
             //     TERM         -> APPLICATION | ABSTRACTION
             // ABSTRACTION  -> LAMBDA LCID DOT TERM
             // APPLICATION  -> ATOM APPLICATION'
-            // APPLICATION' -> ATOM APPLICATION' | ε
+            // APPLICATION' -> ATOM | ABSTRACTION | APPLICATION' | ε
             // ATOM         -> LPAREN TERM RPAREN | LCID
             // LCID         -> 'a' | 'b' | ... | 'z'
             // DOT          -> '.'
             // LAMBDA       -> 'λ'
 
-            let bcVar = Variable::parser().map(Term::Var);
-
+            let bc_var = Variable::parser().map(Term::Var);
             let bracketed_term = term.clone().delimited_by(just('('), just(')'));
-
-            let atom = bcVar.or(bracketed_term);
-
-            let scApp = recursive(|app| {
-                atom.then(app.or_not()).map(|(left, terms)| {
-                    let mut terms = terms.unwrap_or_else(Vec::new);
-                    terms.push(left);
-                    terms
-                })
-            })
-            .map(|v| {
-                v.into_iter()
-                    .rev()
-                    .reduce(|a, b| Term::App(Box::new(a), Box::new(b)))
-                    .unwrap()
-            });
-
-            let scAbs = just('λ')
+            let atom = bc_var.or(bracketed_term);
+            let sc_abs = just('λ')
                 .ignore_then(Variable::parser())
                 .then_ignore(just('.'))
                 .then(term.clone())
-                .map(|(v, t)| Term::Abs(v, Box::new(t)));
+                .map(|(v, t)| Term::abs(v, t));
+            let sc_app = atom
+                .clone()
+                .then(atom.or(sc_abs.clone()).clone().repeated())
+                .foldl(Term::app);
 
-            scApp.or(scAbs)
+            sc_app.or(sc_abs)
         })
         .then_ignore(end())
     }
@@ -181,23 +225,32 @@ mod tests {
     }
 
     macro_rules! term {
-        (var $v:tt) => {
+        (var $v:expr) => {
             Term::Var($v)
         };
-        (vars $($v:tt)*) => {
+        (vars $($v:expr)*) => {
             (
                 $( Term::Var($v) ),*
             )
         };
-        (app $($ts:tt)*) => {{
+        (app $($ts:expr)*) => {{
             let v = Vec::from([
                 $($ts),*
             ]);
             v.into_iter().reduce(|a, b| Term::App(Box::new(a), Box::new(b))).unwrap()
         }};
-        (abs $v:tt $t:tt) => {
+        (abs $v:expr => $t:expr) => {
             Term::Abs($v, Box::new($t))
         };
+    }
+
+    /// macro to perform both the parsing and formatting tests
+    macro_rules! do_test {
+        ($s:ident, $correct:ident) => {{
+            let parsed = $s.parse::<Term>().unwrap();
+            assert_eq!(parsed, $correct);
+            assert_eq!(format!("{}", parsed), $s);
+        }};
     }
 
     #[test]
@@ -218,14 +271,14 @@ mod tests {
     fn test_basic_var() {
         let s = "x";
         let correct = Var(Variable::new('x'));
-        assert_eq!(s.parse::<Term>().unwrap(), correct);
+        do_test!(s, correct);
     }
 
     #[test]
     fn test_basic_var_prime() {
         let s = "x'";
         let correct = Var(Variable::new_with_primes('x', 1));
-        assert_eq!(s.parse::<Term>().unwrap(), correct);
+        do_test!(s, correct);
     }
 
     #[test]
@@ -233,7 +286,7 @@ mod tests {
         let s = "xy";
         vars!(x y);
         let correct = App(Box::new(Var(x)), Box::new(Var(y)));
-        assert_eq!(s.parse::<Term>().unwrap(), correct);
+        do_test!(s, correct);
     }
 
     #[test]
@@ -241,7 +294,7 @@ mod tests {
         let s = "λx.y";
         vars!(x y);
         let correct = Abs(x, Box::new(Var(y)));
-        assert_eq!(s.parse::<Term>().unwrap(), correct);
+        do_test!(s, correct);
     }
 
     #[test]
@@ -250,7 +303,7 @@ mod tests {
         vars!(a b c);
         let (a, b, c) = term!(vars a b c);
         let correct = term!(app a b c);
-        assert_eq!(s.parse::<Term>().unwrap(), correct);
+        do_test!(s, correct);
     }
 
     #[test]
@@ -259,7 +312,7 @@ mod tests {
         vars!(a b c d e f);
         let (a, b, c, d, e, f) = term!(vars a b c d e f);
         let correct = term!(app a b c d e f);
-        assert_eq!(s.parse::<Term>().unwrap(), correct);
+        do_test!(s, correct);
     }
 
     #[test]
@@ -268,29 +321,51 @@ mod tests {
         vars!(x y z);
         let (xt, yt, zt) = term!(vars x y z);
         let app = term!(app xt yt zt);
-        let tmp1 = term!(abs z app);
-        let tmp2 = term!(abs y tmp1);
-        let correct = term!(abs x tmp2);
-        assert_eq!(s.parse::<Term>().unwrap(), correct);
+        let tmp1 = term!(abs z => app);
+        let tmp2 = term!(abs y => tmp1);
+        let correct = term!(abs x => tmp2);
+        do_test!(s, correct);
+    }
+
+    #[test]
+    fn test_abs_after_var() {
+        let s = "xλx.x";
+        vars!(x);
+        let xt = term!(var x);
+        let abs = term!(abs x => xt.clone());
+        let correct = term!(app xt abs);
+        do_test!(s, correct);
     }
 
     #[test]
     fn test_worksheet1() {
         let s = "λw.w(λx.λy.λx.xbx)λx.x(λx.x)awy";
 
-        vars!(a b w x y z);
+        vars!(a b w x y);
 
-        let (at, bt, wt, xt, yt, zt) = term!(vars a b w x y z);
-        let tmp = term!(app (xt.clone()) bt (xt.clone())); // xbx
-        let tmp = term!(abs x tmp); // λx.xbx
-        let tmp = term!(abs y tmp); // λy.λx.xbx
-        let left_brac = term!(abs x tmp); // λx.λy.λx.xbx
-        let right_brac = term!(abs x (xt.clone())); // λx.x
-        let right_abs_inner = term!(app xt right_brac at (wt.clone()) yt); // x(λx.x)awy
-        let right_abs = term!(abs x right_abs_inner); // x(λx.x)awy
-        let abs_inner = term!(app wt left_brac right_abs);
-        let correct = term!(abs w abs_inner);
+        let (at, bt, wt, xt, yt) = term!(vars a b w x y);
+        let tmp = term!(app xt.clone() bt xt.clone()); // xbx
+        let tmp = term!(abs x => tmp); // λx.xbx
+        let tmp = term!(abs y => tmp); // λy.λx.xbx
+        let left_brac = term!(abs x => tmp); // λx.λy.λx.xbx
+        let right_brac = term!(abs x => xt.clone()); // λx.x
+        let right_abs_inner = term!(app xt right_brac at wt.clone() yt); // x(λx.x)awy
+        let right_abs = term!(abs x => right_abs_inner); // λx.x(λx.x)awy
+        let abs_inner = term!(app wt left_brac right_abs); // w(λx.λy.λx.xbx)λx.x(λx.x)awy
+        let correct = term!(abs w => abs_inner); // λw.w(λx.λy.λx.xbx)λx.x(λx.x)awy
 
-        assert_eq!(s.parse::<Term>().unwrap(), correct);
+        do_test!(s, correct);
+    }
+
+    #[test]
+    fn test_nested_bracketing() {
+        let s = "(λx.x)(λy.y)λz.z";
+        vars!(x y z);
+        let (xt, yt, zt) = term!(vars x y z);
+        let x_brac = term!(abs x => xt); // λx.x
+        let y_brac = term!(abs y => yt); // λx.x
+        let dangle_dangle = term!(abs z => zt); // λx.x
+        let correct = term!(app x_brac y_brac dangle_dangle);
+        do_test!(s, correct);
     }
 }
