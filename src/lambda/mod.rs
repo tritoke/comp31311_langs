@@ -148,6 +148,14 @@ mod tests {
             let correct = term!(app term!(abs x => x) term!(abs y => y) term!(abs z => z));
             do_test!(s, correct);
         }
+
+        #[test]
+        fn test_allows_mixed_brackets() {
+            let s = "a<b(c[de])>";
+            vars!(a b c d e);
+            let correct = term!(app a term!(app b term!(app c term!(app d e))));
+            assert_eq!(s.parse::<Term>().unwrap(), correct);
+        }
     }
 
     mod formatting {
@@ -338,6 +346,20 @@ mod tests {
             }
 
             assert!(reduced.beta_reduction().is_none());
+        }
+
+        #[test]
+        fn test_parallel_reduct() {
+            let t = parse!(r"(<\p.(\f.[p(\x.c)][p(\y.y)])>(\g.g[(\z.\a.a)b])\w.wb)");
+            let correct = parse!(r"(\f.[(\y.y(\a.a))(\x.c)][(\g.g(\a.a))(\y.y)])\w.wb");
+            assert!(t.parallel_reduct().is_alpha_equivalent(&correct));
+        }
+
+        #[test]
+        fn test_parallel_reduct_n() {
+            let t = parse!(r"(<\p.(\f.[p(\x.c)][p(\y.y)])>(\g.g[(\z.\a.a)b])\w.wb)");
+            let correct = parse!(r"(λd.c)(λc.c)((λc.c)λc.c)");
+            assert!(t.parallel_reduct_n(2).is_alpha_equivalent(&correct));
         }
     }
 }

@@ -120,18 +120,12 @@ impl Term {
     /// ```
     pub fn parser() -> impl Parser<char, Term, Error = Simple<char>> {
         recursive(|term| {
-            // without left-recursion:
-            //     TERM         -> APPLICATION | ABSTRACTION
-            // ABSTRACTION  -> LAMBDA LCID DOT TERM
-            // APPLICATION  -> ATOM APPLICATION'
-            // APPLICATION' -> ATOM | ABSTRACTION | APPLICATION' | ε
-            // ATOM         -> LPAREN TERM RPAREN | LCID
-            // LCID         -> 'a' | 'b' | ... | 'z'
-            // DOT          -> '.'
-            // LAMBDA       -> 'λ' | '\'
-
             let bc_var = Variable::parser().map(Term::Var);
-            let bracketed_term = term.clone().delimited_by(just('('), just(')'));
+            let bracketed_term = choice((
+                term.clone().delimited_by(just('('), just(')')),
+                term.clone().delimited_by(just('['), just(']')),
+                term.clone().delimited_by(just('<'), just('>')),
+            ));
             let atom = bc_var.or(bracketed_term);
             let sc_abs = one_of(r"λ\")
                 .ignore_then(Variable::parser())
@@ -350,6 +344,53 @@ impl Term {
             // if its none of these cases it doesn't beta reduce
             _ => None,
         }
+    }
+
+    /// Compute the parallel reduct of the term
+    /// ```
+    /// use chumsky::Parser;
+    /// use lambda_parser::lambda::{Term, Variable};
+    /// let orig = Term::parser().parse(r"(\s.s(s(z)))((\x.x)(\y.y))").unwrap();
+    /// let correct = Term::parser().parse(r"(\y.y)((\y.y)z)").unwrap();
+    /// assert!(orig.parallel_reduct().is_alpha_equivalent(&correct));
+    /// ```
+    pub fn parallel_reduct(&self) -> Term {
+        match self {
+            // bcVar◇
+            Term::Var(_) => self.clone(),
+            // scAbs◇
+            Term::Abs(x, t) => Term::abs(*x, t.parallel_reduct()),
+            // scApp◇
+            Term::App(t, u) => match *t.clone() {
+                Term::Abs(x, tp) => tp.parallel_reduct().cap_avoid_subst(x, u.parallel_reduct()),
+                _ => Term::app(t.parallel_reduct(), u.parallel_reduct()),
+            },
+        }
+    }
+
+    /// Perform the parallel reduct operation n times
+    /// ```
+    /// use chumsky::Parser;
+    /// use lambda_parser::lambda::{Term, Variable};
+    /// let orig = Term::parser().parse(r"(\s.s(s(z)))((\x.x)(\y.y))").unwrap();
+    /// let correct = Term::parser().parse(r"z").unwrap();
+    /// assert_eq!(orig.parallel_reduct_n(2), correct);
+    /// ```
+    pub fn parallel_reduct_n(&self, n: usize) -> Term {
+        let mut t = self.clone();
+
+        for _ in 0..n {
+            let tr = t.parallel_reduct();
+
+            // if we've stopped replacing stuff nothing new will happen
+            if tr == t {
+                break;
+            }
+
+            t = tr;
+        }
+
+        t
     }
 }
 
