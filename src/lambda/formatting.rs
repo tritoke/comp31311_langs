@@ -4,16 +4,16 @@ use crate::lambda::Term;
 use std::fmt;
 
 // struct to hold the left hand side of an application while formatting
-pub(super) struct Left(Term);
+pub(super) struct Left<'a>(&'a Term);
 
-impl fmt::Display for Left {
+impl<'a> fmt::Display for Left<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             Term::Var(v) => write!(f, "{v}"),
             Term::Abs(v, t) => write!(f, "(λ{v}.{t})"),
             Term::App(t1, t2) => {
-                let l1 = Left(*t1.clone());
-                let l2 = Left(*t2.clone());
+                let l1 = Left(t1);
+                let l2 = Left(t2);
                 write!(f, "{l1}{l2}")
             }
         }
@@ -21,16 +21,16 @@ impl fmt::Display for Left {
 }
 
 // struct to hold the right hand side of an application while formatting
-pub(super) struct Right(Term);
+pub(super) struct Right<'a>(&'a Term);
 
-impl fmt::Display for Right {
+impl<'a> fmt::Display for Right<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             Term::Var(v) => write!(f, "{v}"),
             Term::Abs(v, t) => write!(f, "λ{v}.{t}"),
             Term::App(t1, t2) => {
-                let l = Left(*t1.clone());
-                let r = Right(*t2.clone());
+                let l = Left(t1);
+                let r = Right(t2);
                 write!(f, "({l}{r})")
             }
         }
@@ -51,8 +51,8 @@ impl fmt::Display for Term {
                 Term::Var(v) => write!(f, "{v}"),
                 Term::Abs(v, t) => write!(f, "λ{v}.{t}"),
                 Term::App(t1, t2) => {
-                    let l = Left(*t1.clone());
-                    let r = Right(*t2.clone());
+                    let l = Left(t1);
+                    let r = Right(t2);
                     write!(f, "{l}{r}")
                 }
             }
