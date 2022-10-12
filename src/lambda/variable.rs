@@ -24,18 +24,34 @@ impl Variable {
     pub const ALPHABET: &'static str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
     /// Create a new variable with just an alphabetic character
+    /// ```
+    /// use comp31311_langs::lambda::Variable;
+    /// let a = Variable::new('a');
+    /// assert_eq!(format!("{a}"), "a")
+    /// ```
     pub fn new(c: char) -> Self {
         assert!(c.is_alphabetic());
         Self { c, primes: 0 }
     }
 
     /// Create a new variable with an alphabetic character and a number of prime symbols
+    /// ```
+    /// use comp31311_langs::lambda::Variable;
+    /// let a_prime = Variable::new_with_primes('a', 1);
+    /// assert_eq!(format!("{a_prime}"), "a'")
+    /// ```
     pub fn new_with_primes(c: char, primes: u32) -> Self {
         assert!(c.is_alphabetic());
         Self { c, primes }
     }
 
     /// Chumsky parser for the Variable type
+    /// ```
+    /// use chumsky::Parser;
+    /// use comp31311_langs::lambda::Variable;
+    /// let x = Variable::parser().parse("a''").unwrap();
+    /// assert_eq!(x, Variable::new_with_primes('a', 2))
+    /// ```
     pub fn parser() -> impl Parser<char, Variable, Error = Simple<char>> + Clone {
         one_of(Variable::ALPHABET)
             .then(just('\'').repeated())

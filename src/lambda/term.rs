@@ -1,4 +1,4 @@
-use crate::lambda::Variable;
+use crate::lambda::{Variable, Vars};
 use chumsky::{error::Simple, prelude::*, Parser};
 use std::collections::HashSet;
 use std::hash::Hash;
@@ -14,9 +14,6 @@ pub enum Term {
     /// Application - scApp: tt'
     App(Box<Term>, Box<Term>),
 }
-
-/// Type alias representing a set of Variables
-pub type Vars = HashSet<Variable>;
 
 impl FromStr for Term {
     type Err = Vec<Simple<char>>;
@@ -36,7 +33,7 @@ impl Term {
     /// Create a Term::Var from a variable
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::{Term, Variable};
+    /// use comp31311_langs::lambda::{Term, Variable};
     /// let correct = Term::parser().parse(r"x").unwrap();
     /// let x = Variable::new('x');
     /// let v = Term::var(x);
@@ -49,7 +46,7 @@ impl Term {
     /// Create a Term::Abs from a variable and a term
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::{Term, Variable};
+    /// use comp31311_langs::lambda::{Term, Variable};
     /// let correct = Term::parser().parse(r"\x.y").unwrap();
     /// let x = Variable::new('x');
     /// let y = Term::Var(Variable::new('y'));
@@ -63,7 +60,7 @@ impl Term {
     /// Create a Term::App from two Terms
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::{Term, Variable};
+    /// use comp31311_langs::lambda::{Term, Variable};
     /// let correct = Term::parser().parse(r"xy").unwrap();
     /// let x = Term::Var(Variable::new('x'));
     /// let y = Term::Var(Variable::new('y'));
@@ -77,7 +74,7 @@ impl Term {
     /// Is the Term a Term::Var?
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::Term;
+    /// use comp31311_langs::lambda::Term;
     /// let term = Term::parser().parse(r"x").unwrap();
     /// assert!(term.is_var());
     /// ```
@@ -88,7 +85,7 @@ impl Term {
     /// Is the Term a Term::Abs?
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::Term;
+    /// use comp31311_langs::lambda::Term;
     /// let term = Term::parser().parse(r"\x.y").unwrap();
     /// assert!(term.is_abs());
     /// ```
@@ -99,7 +96,7 @@ impl Term {
     /// Is the Term a Term::App?
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::Term;
+    /// use comp31311_langs::lambda::Term;
     /// let term = Term::parser().parse(r"xy").unwrap();
     /// assert!(term.is_app());
     /// ```
@@ -110,7 +107,7 @@ impl Term {
     /// the chumsky parser for the Term type
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::{Term, Variable};
+    /// use comp31311_langs::lambda::{Term, Variable};
     /// let t = Term::parser().parse(r"\c.abc").unwrap();
     /// let a = Variable::new('a');
     /// let b = Variable::new('b');
@@ -145,7 +142,7 @@ impl Term {
     /// Is the term `t` a subterm of the given term
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::Term;
+    /// use comp31311_langs::lambda::Term;
     /// let app = Term::parser().parse(r"\x.y").unwrap();
     /// let nested = Term::parser().parse(r"\a.\b.\c.\x.y").unwrap();
     /// assert!(app.is_subterm(&app));
@@ -170,7 +167,7 @@ impl Term {
     /// Is the term `t` a proper subterm of the given term
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::Term;
+    /// use comp31311_langs::lambda::Term;
     /// let app = Term::parser().parse(r"\x.y").unwrap();
     /// let nested = Term::parser().parse(r"\a.\b.\c.\x.y").unwrap();
     /// assert!(!app.is_proper_subterm(&app));
@@ -187,7 +184,7 @@ impl Term {
     /// Return the set of all bound variables in this expression
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::{Term, Variable, Vars};
+    /// use comp31311_langs::lambda::{Term, Variable, Vars};
     /// use std::collections::HashSet;
     /// let t = Term::parser().parse(r"\a.\b.\c.def").unwrap();
     /// let s: Vars = "abc".chars().map(Variable::new).collect();
@@ -196,18 +193,18 @@ impl Term {
     pub fn bv(&self) -> Vars {
         match self {
             // bcVarbv
-            Term::Var(_) => HashSet::new(),
+            Term::Var(_) => Default::default(),
             // scAbsbv
-            Term::Abs(v, t) => t.bv().union(&HashSet::from([*v])).copied().collect(),
+            Term::Abs(v, t) => t.bv().union([*v]),
             // scAppbv
-            Term::App(t1, t2) => t1.bv().union(&t2.bv()).copied().collect(),
+            Term::App(t1, t2) => t1.bv().union(t2.bv()),
         }
     }
 
     /// Return the set of all free variables in this expression
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::{Term, Variable, Vars};
+    /// use comp31311_langs::lambda::{Term, Variable, Vars};
     /// use std::collections::HashSet;
     /// let t = Term::parser().parse(r"\a.\b.\c.def").unwrap();
     /// let s: Vars = "def".chars().map(Variable::new).collect();
@@ -216,31 +213,31 @@ impl Term {
     pub fn fv(&self) -> Vars {
         match self {
             // bcVarfv
-            Term::Var(v) => HashSet::from([*v]),
+            Term::Var(v) => Vars::from([*v]),
             // scAbsfv
-            Term::Abs(v, t) => t.fv().difference(&HashSet::from([*v])).copied().collect(),
+            Term::Abs(v, t) => t.fv().difference([*v]),
             // scAppfv
-            Term::App(t1, t2) => t1.fv().union(&t2.fv()).copied().collect(),
+            Term::App(t1, t2) => t1.fv().union(t2.fv()),
         }
     }
 
     /// Return all the variables in a given Term
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::{Term, Variable, Vars};
+    /// use comp31311_langs::lambda::{Term, Variable, Vars};
     /// use std::collections::HashSet;
     /// let t = Term::parser().parse(r"\a.\b.\c.def").unwrap();
     /// let s: Vars = "abcdef".chars().map(Variable::new).collect();
     /// assert_eq!(t.vars(), s);
     /// ```
     pub fn vars(&self) -> Vars {
-        self.fv().union(&self.bv()).copied().collect()
+        self.fv().union(self.bv())
     }
 
     /// Renaming variable A to variable B in term
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::{Term, Variable};
+    /// use comp31311_langs::lambda::{Term, Variable};
     /// let t = Term::parser().parse(r"\a.\b.\c.abc").unwrap();
     /// let a = Variable::new('a');
     /// let b = Variable::new('b');
@@ -261,7 +258,7 @@ impl Term {
     /// is this term alpha equivalent to `other`
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::{Term, Variable};
+    /// use comp31311_langs::lambda::{Term, Variable};
     /// let t1 = Term::parser().parse(r"\a.\b.\c.abc").unwrap();
     /// let t2 = Term::parser().parse(r"\x.\y.\z.xyz").unwrap();
     /// assert!(t1.is_alpha_equivalent(&t2));
@@ -272,8 +269,8 @@ impl Term {
             (Term::Var(v1), Term::Var(v2)) => v1 == v2,
             // scAbs~α
             (Term::Abs(x1, t1), Term::Abs(x2, t2)) => {
-                let vs = self.vars().union(&other.vars()).copied().collect();
-                let v = freshv(&vs);
+                let vs = self.vars().union(other.vars());
+                let v = vs.freshv();
                 let r1 = t1.ren(*x1, v);
                 let r2 = t2.ren(*x2, v);
                 r1.is_alpha_equivalent(&r2)
@@ -290,7 +287,7 @@ impl Term {
     /// Perform capture avoiding substitution of the variable x for the term t in the current term
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::{Term, Variable};
+    /// use comp31311_langs::lambda::{Term, Variable};
     /// let orig = Term::parser().parse(r"(\x.y)(\y.y)").unwrap();
     /// let a = Variable::new('y');
     /// let t = Term::parser().parse(r"\a.a").unwrap();
@@ -309,9 +306,8 @@ impl Term {
             }
             // scAbs[]
             Term::Abs(y, u) => {
-                let mut vs: Vars = self.vars().union(&t.vars()).copied().collect();
-                vs.insert(x);
-                let w = freshv(&vs);
+                let vs: Vars = self.vars().union(t.vars()).union([x]);
+                let w = vs.freshv();
                 Term::abs(w, u.ren(*y, w).cap_avoid_subst(x, t))
             }
             // scApp[]
@@ -322,7 +318,7 @@ impl Term {
     /// Perform one step of beta reduction if possible
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::{Term, Variable};
+    /// use comp31311_langs::lambda::{Term, Variable};
     /// let orig = Term::parser().parse(r"(\x.x)(\y.y)").unwrap();
     /// let correct = Term::parser().parse(r"\y.y").unwrap();
     /// assert_eq!(orig.beta_reduction(), Some(correct));
@@ -349,7 +345,7 @@ impl Term {
     /// Compute the parallel reduct of the term
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::{Term, Variable};
+    /// use comp31311_langs::lambda::{Term, Variable};
     /// let orig = Term::parser().parse(r"(\s.s(s(z)))((\x.x)(\y.y))").unwrap();
     /// let correct = Term::parser().parse(r"(\y.y)((\y.y)z)").unwrap();
     /// assert!(orig.parallel_reduct().is_alpha_equivalent(&correct));
@@ -371,7 +367,7 @@ impl Term {
     /// Perform the parallel reduct operation n times
     /// ```
     /// use chumsky::Parser;
-    /// use lambda_parser::lambda::{Term, Variable};
+    /// use comp31311_langs::lambda::{Term, Variable};
     /// let orig = Term::parser().parse(r"(\s.s(s(z)))((\x.x)(\y.y))").unwrap();
     /// let correct = Term::parser().parse(r"z").unwrap();
     /// assert_eq!(orig.parallel_reduct_n(2), correct);
@@ -392,20 +388,4 @@ impl Term {
 
         t
     }
-}
-
-/// Generate a fresh variable given the variables in the term
-pub fn freshv(vars: &Vars) -> Variable {
-    // find the smallest letter in the alphabet with the
-    // fewest number of primes to use as a fresh variable
-    for primes in 0..=u32::MAX {
-        for c in Variable::ALPHABET.chars() {
-            let v = Variable::new_with_primes(c, primes);
-            if !vars.contains(&v) {
-                return v;
-            }
-        }
-    }
-
-    unreachable!("Big bruh moment - ran out of variables?????????");
 }

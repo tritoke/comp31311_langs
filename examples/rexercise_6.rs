@@ -1,4 +1,4 @@
-use lambda_parser::lambda::*;
+use comp31311_langs::lambda::*;
 
 fn main() {
     let s = r"((\x.\y.z(xy))\y'.y'x)((\x.x)(yy'))";

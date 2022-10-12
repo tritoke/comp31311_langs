@@ -1,9 +1,11 @@
 mod formatting;
 mod term;
 mod variable;
+mod vars;
 
-pub use term::*;
+pub use term::Term;
 pub use variable::Variable;
+pub use vars::Vars;
 
 #[cfg(test)]
 mod tests {
@@ -211,8 +213,6 @@ mod tests {
 
     mod functionality {
         use super::*;
-        use crate::lambda::term::freshv;
-        use crate::lambda::Term::Var;
         use std::collections::HashSet;
 
         macro_rules! parse {
@@ -262,7 +262,7 @@ mod tests {
         fn test_vars() {
             let t = parse!(r"\a.\b.\c.defgh");
             vars!(a b c d e f g h);
-            let s = HashSet::from([a, b, c, d, e, f, g, h]);
+            let s = Vars::from([a, b, c, d, e, f, g, h]);
             assert_eq!(t.vars(), s);
         }
 
@@ -270,7 +270,7 @@ mod tests {
         fn test_bv() {
             let t = parse!(r"(\a.\b.ab)\c.cdefg");
             vars!(a b c);
-            let s = HashSet::from([a, b, c]);
+            let s = Vars::from([a, b, c]);
             assert_eq!(t.bv(), s);
         }
 
@@ -278,7 +278,7 @@ mod tests {
         fn test_fv() {
             let t = parse!(r"(\a.\b.de)\c.cfg");
             vars!(d e f g);
-            let s = HashSet::from([d, e, f, g]);
+            let s = Vars::from([d, e, f, g]);
             assert_eq!(t.fv(), s);
         }
 
@@ -293,12 +293,12 @@ mod tests {
         #[test]
         fn test_freshv() {
             vars!(a b);
-            let s = HashSet::from([a]);
-            assert_eq!(freshv(&s), b);
-            let s = HashSet::from([b]);
-            assert_eq!(freshv(&s), a);
-            let s: HashSet<Variable> = Variable::ALPHABET.chars().map(Variable::new).collect();
-            assert_eq!(freshv(&s), Variable::new_with_primes('a', 1));
+            let s: Vars = [a].into();
+            assert_eq!(s.freshv(), b);
+            let s: Vars = [b].into();
+            assert_eq!(s.freshv(), a);
+            let s: Vars = Variable::ALPHABET.chars().map(Variable::new).collect();
+            assert_eq!(s.freshv(), Variable::new_with_primes('a', 1));
         }
 
         #[test]
