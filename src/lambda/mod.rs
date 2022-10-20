@@ -232,8 +232,8 @@ mod tests {
             let t = parse!(r"\x.y");
             let x = parse!("x");
             let y = parse!("y");
-            assert!(t.is_subterm(&x));
-            assert!(t.is_subterm(&y));
+            assert!(x.is_subterm(&t));
+            assert!(y.is_subterm(&t));
         }
 
         #[test]
@@ -241,15 +241,15 @@ mod tests {
             let t = parse!(r"xx'");
             let x = parse!("x");
             let xp = parse!("x'");
-            assert!(t.is_subterm(&x));
-            assert!(t.is_subterm(&xp));
+            assert!(x.is_subterm(&t));
+            assert!(xp.is_subterm(&t));
         }
 
         #[test]
         fn test_is_subterm_abs_very_nested() {
             let st = parse!(r"\x.y");
             let t = parse!(r"\a.\b.\c.\d.\e.\f.\g.\x.y");
-            assert!(t.is_subterm(&st));
+            assert!(st.is_subterm(&t));
         }
 
         #[test]
@@ -293,9 +293,9 @@ mod tests {
         #[test]
         fn test_freshv() {
             vars!(a b);
-            let s: Vars = [a].into();
+            let s: Vars = a.into();
             assert_eq!(s.freshv(), b);
-            let s: Vars = [b].into();
+            let s: Vars = b.into();
             assert_eq!(s.freshv(), a);
             let s: Vars = Variable::ALPHABET.chars().map(Variable::new).collect();
             assert_eq!(s.freshv(), Variable::new_with_primes('a', 1));
@@ -360,6 +360,46 @@ mod tests {
             let t = parse!(r"(<\p.(\f.[p(\x.c)][p(\y.y)])>(\g.g[(\z.\a.a)b])\w.wb)");
             let correct = parse!(r"(λd.c)(λc.c)((λc.c)λc.c)");
             assert!(t.parallel_reduct_n(2).is_alpha_equivalent(&correct));
+        }
+
+        #[test]
+        fn test_redexes() {
+            let orig = Term::parser().parse(r"(\z.z)((\y.y)a((\x.x)y))").unwrap();
+            let correct = HashSet::from([
+                Term::parser().parse(r"(\x.x)y").unwrap(),
+                Term::parser().parse(r"(\y.y)a").unwrap(),
+                Term::parser().parse(r"(\z.z)((\y.y)a((\x.x)y))").unwrap(),
+            ]);
+            let owned: HashSet<Term> = orig.redexes().into_iter().cloned().collect();
+            assert_eq!(correct, owned);
+        }
+
+        #[test]
+        fn test_beta_alpha_reduction() {
+            let t = parse!(r"(\x.\y.\z.zyx)abc");
+            let steps = [
+                parse!(r"(\y.\z.zya)bc"),
+                parse!(r"(\z.zba)c"),
+                parse!(r"cba"),
+            ];
+
+            let mut reduced = t.clone();
+            for step in steps {
+                reduced = reduced.beta_alpha_reduction().unwrap();
+                assert_eq!(reduced, step);
+            }
+
+            assert!(reduced.beta_reduction().is_none());
+        }
+
+        #[test]
+        fn test_beta_alpha_reduction_fails_on_non_alpha_equivalent_terms() {
+            let t = parse!(r"(\x.\y.\z.zyx)zyx");
+            // this term would reduce to (\y.\z.zyz)yx
+            // which is not alpha equivalent to the beta reduced version: (\a.\b.baz)yx
+            let correct = parse!(r"(\a.\b.baz)yx");
+            assert!(t.beta_alpha_reduction().is_none());
+            assert!(t.beta_reduction().unwrap().is_alpha_equivalent(&correct));
         }
     }
 }

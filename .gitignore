@@ -1,3 +1,6 @@
 /target
 /Cargo.lock
 .idea
+# no leak 😤
+coursework_1.rs
+coursework_2.rs

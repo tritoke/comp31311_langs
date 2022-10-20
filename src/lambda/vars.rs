@@ -43,6 +43,32 @@ impl Vars {
         self.vars.difference(&other.into().vars).copied().collect()
     }
 
+    /// construct the intersection of two sets of variables
+    /// ```
+    /// use comp31311_langs::lambda::{Vars, Variable};
+    /// let a: Vars = "abc".chars().map(Variable::new).collect();
+    /// let b: Vars = "cde".chars().map(Variable::new).collect();
+    /// let int: Vars = "c".chars().map(Variable::new).collect();
+    /// assert_eq!(a.intersection(b), int);
+    /// ```
+    pub fn intersection(&self, other: impl Into<Self>) -> Self {
+        self.vars
+            .intersection(&other.into().vars)
+            .copied()
+            .collect()
+    }
+
+    /// construct the difference of two sets of variables
+    /// ```
+    /// use comp31311_langs::lambda::{Vars, Variable};
+    /// let a: Vars = "abc".chars().map(Variable::new).collect();
+    /// let b: Vars = "ab".chars().map(Variable::new).collect();
+    /// assert!(b.is_subset(&a));
+    /// ```
+    pub fn is_subset(&self, other: &Self) -> bool {
+        self.vars.is_subset(&other.vars)
+    }
+
     /// Generate a fresh variable given the variables in the term
     /// ```
     /// use comp31311_langs::lambda::{Vars, Variable};
@@ -62,6 +88,14 @@ impl Vars {
         }
 
         unreachable!("Big bruh moment - ran out of variables?????????");
+    }
+}
+
+impl From<Variable> for Vars {
+    fn from(v: Variable) -> Self {
+        Vars {
+            vars: HashSet::from([v]),
+        }
     }
 }
 

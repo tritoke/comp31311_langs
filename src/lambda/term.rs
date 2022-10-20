@@ -146,7 +146,7 @@ impl Term {
     /// let app = Term::parser().parse(r"\x.y").unwrap();
     /// let nested = Term::parser().parse(r"\a.\b.\c.\x.y").unwrap();
     /// assert!(app.is_subterm(&app));
-    /// assert!(nested.is_subterm(&app));
+    /// assert!(app.is_subterm(&nested));
     /// ```
     pub fn is_subterm(&self, t: &Term) -> bool {
         // first check if the self and t are identical
@@ -154,31 +154,27 @@ impl Term {
             return true;
         }
 
-        match self {
+        match t {
             // bcVar
             Term::Var(_) => self == t,
             // scAbs
-            Term::Abs(v, t_inner) => t == &Term::Var(*v) || t_inner.is_subterm(t),
+            Term::Abs(v, t_inner) => self == &Term::Var(*v) || self.is_subterm(&t_inner),
             // scApp
-            Term::App(t1, t2) => t1.is_subterm(t) || t2.is_subterm(t),
+            Term::App(t1, t2) => self.is_subterm(t1) || self.is_subterm(t2),
         }
     }
 
-    /// Is the term `t` a proper subterm of the given term
+    /// Is this term a proper subterm of `t`
     /// ```
     /// use chumsky::Parser;
     /// use comp31311_langs::lambda::Term;
     /// let app = Term::parser().parse(r"\x.y").unwrap();
     /// let nested = Term::parser().parse(r"\a.\b.\c.\x.y").unwrap();
     /// assert!(!app.is_proper_subterm(&app));
-    /// assert!(nested.is_proper_subterm(&app));
+    /// assert!(app.is_proper_subterm(&nested));
     /// ```
     pub fn is_proper_subterm(&self, t: &Term) -> bool {
-        if self == t {
-            false
-        } else {
-            self.is_subterm(t)
-        }
+        self != t && self.is_subterm(t)
     }
 
     /// Return the set of all bound variables in this expression
@@ -306,7 +302,7 @@ impl Term {
             }
             // scAbs[]
             Term::Abs(y, u) => {
-                let vs: Vars = self.vars().union(t.vars()).union([x]);
+                let vs: Vars = self.vars().union(t.vars()).union(x);
                 let w = vs.freshv();
                 Term::abs(w, u.ren(*y, w).cap_avoid_subst(x, t))
             }
@@ -325,7 +321,7 @@ impl Term {
     /// ```
     pub fn beta_reduction(&self) -> Option<Term> {
         match self {
-            // bcVarβ
+            // bcAppβ
             Term::App(abs, a) if abs.is_abs() => match *abs.clone() {
                 Term::Abs(x, t) => Some(t.cap_avoid_subst(x, *a.clone())),
                 _ => None,
@@ -387,5 +383,102 @@ impl Term {
         }
 
         t
+    }
+
+    /// Find all the redexes in the term
+    /// ```
+    /// use std::collections::HashSet;
+    /// use chumsky::Parser;
+    /// use comp31311_langs::lambda::{Term, Variable};
+    /// let orig = Term::parser().parse(r"(\y.y)a((\x.x)y)").unwrap();
+    /// let correct = HashSet::from([
+    ///     Term::parser().parse(r"(\x.x)y").unwrap(),
+    ///     Term::parser().parse(r"(\y.y)a").unwrap(),
+    /// ]);
+    /// let owned = orig.redexes().into_iter().cloned().collect();
+    /// assert_eq!(correct, owned);
+    /// ```
+    pub fn redexes(&self) -> Vec<&Term> {
+        let mut redexes = vec![];
+        let mut term_stack = vec![self];
+        while let Some(term) = term_stack.pop() {
+            match term {
+                Term::Var(_) => {}
+                Term::Abs(_, t) => {
+                    term_stack.push(t);
+                }
+                Term::App(t1, t2) => {
+                    term_stack.push(t1);
+                    term_stack.push(t2);
+                    if t1.is_abs() {
+                        redexes.push(term);
+                    }
+                }
+            }
+        }
+
+        redexes
+    }
+
+    /// Perform a beta-alpha reduction - a beta reduction where no new variables are introduced
+    /// ```
+    /// use chumsky::Parser;
+    /// use comp31311_langs::lambda::{Term, Variable};
+    /// let orig = Term::parser().parse(r"(\y.\x.y)z").unwrap();
+    /// let correct = Term::parser().parse(r"\x.z").unwrap();
+    /// assert_ne!(orig.beta_reduction().as_ref(), Some(&correct));
+    /// assert_eq!(orig.beta_alpha_reduction(), Some(correct));
+    /// ```
+    pub fn beta_alpha_reduction(&self) -> Option<Term> {
+        // capturing substitution
+        fn subst(term: &Term, x: Variable, t: Term) -> Term {
+            match term {
+                // bcVar[]
+                Term::Var(y) => {
+                    if *y == x {
+                        t
+                    } else {
+                        term.clone()
+                    }
+                }
+                // scAbs[]
+                Term::Abs(y, u) => {
+                    let vs: Vars = term.vars().union(t.vars()).union(x);
+                    let w = vs.freshv();
+                    Term::abs(w, subst(&u.ren(*y, w), x, t)).ren(w, *y)
+                }
+                // scApp[]
+                Term::App(r, s) => Term::app(subst(r, x, t.clone()), subst(s, x, t)),
+            }
+        }
+
+        /// Perform the body of the beta-alpha reduction, without checking whether we are still alpha equivalent
+        fn beta_alpha_reduction_inner(term: &Term) -> Option<Term> {
+            match term {
+                // bcAppβα
+                Term::App(abs, a) if abs.is_abs() => match *abs.clone() {
+                    Term::Abs(x, t) => Some(subst(&t, x, *a.clone())),
+                    _ => None,
+                },
+                // scAbsβα
+                Term::Abs(x, t) => beta_alpha_reduction_inner(t).map(|tp| Term::abs(*x, tp)),
+                // scAppβα
+                Term::App(t, u) => beta_alpha_reduction_inner(t)
+                    .map(|tp| Term::app(tp, *u.clone()))
+                    .or_else(|| beta_alpha_reduction_inner(u).map(|up| Term::app(*t.clone(), up))),
+                // if its none of these cases it doesn't beta reduce
+                _ => None,
+            }
+        }
+
+        // compute the beta-alpha reduction and beta reduction, returning the beta-alpha reduction
+        // if it is alpha equivalent to the beta reduced term
+        let beta_alpha_reduced = beta_alpha_reduction_inner(self);
+        let beta_reduced = self.beta_reduction();
+
+        match (beta_alpha_reduced, beta_reduced) {
+            (Some(bar), Some(br)) => bar.is_alpha_equivalent(&br).then_some(bar),
+            _ => None,
+        }
     }
 }
