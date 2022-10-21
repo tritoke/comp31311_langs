@@ -1,6 +1,5 @@
 use crate::lambda::{Variable, Vars};
 use chumsky::{error::Simple, prelude::*, Parser};
-use std::collections::HashSet;
 use std::hash::Hash;
 use std::str::FromStr;
 
@@ -109,9 +108,7 @@ impl Term {
     /// use chumsky::Parser;
     /// use comp31311_langs::lambda::{Term, Variable};
     /// let t = Term::parser().parse(r"\c.abc").unwrap();
-    /// let a = Variable::new('a');
-    /// let b = Variable::new('b');
-    /// let c = Variable::new('c');
+    /// let [a, b, c] = ['a', 'b', 'c'].map(Variable::new);
     /// let correct = Term::abs(c, Term::app(Term::app(a.into(), b.into()), c.into()));
     /// assert_eq!(t, correct);
     /// ```
