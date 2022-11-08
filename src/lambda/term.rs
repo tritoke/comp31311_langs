@@ -188,7 +188,7 @@ impl Term {
             // bcVarbv
             Term::Var(_) => Default::default(),
             // scAbsbv
-            Term::Abs(v, t) => t.bv().union([*v]),
+            Term::Abs(v, t) => t.bv().union(*v),
             // scAppbv
             Term::App(t1, t2) => t1.bv().union(t2.bv()),
         }
@@ -206,9 +206,9 @@ impl Term {
     pub fn fv(&self) -> Vars {
         match self {
             // bcVarfv
-            Term::Var(v) => Vars::from([*v]),
+            Term::Var(v) => Vars::from(*v),
             // scAbsfv
-            Term::Abs(v, t) => t.fv().difference([*v]),
+            Term::Abs(v, t) => t.fv().difference(*v),
             // scAppfv
             Term::App(t1, t2) => t1.fv().union(t2.fv()),
         }

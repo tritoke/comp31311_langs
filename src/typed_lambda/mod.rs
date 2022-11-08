@@ -115,4 +115,23 @@ mod tests {
             assert_eq!(format!("{ct:#}"), correct);
         }
     }
+
+    mod functionality {
+        use super::*;
+
+        #[test]
+        fn test_type_inference_cannot_infer_free_variable() {
+            let pt: Preterm = "x".parse().unwrap();
+            let inferred_type = TypeEnvironment::new().infer_type(&pt);
+            assert!(inferred_type.is_none());
+        }
+
+        #[test]
+        fn test_type_inference_infers_function_type() {
+            let pt: Preterm = r"\x:s.x".parse().unwrap();
+            let correct: Type = "s->s".parse().unwrap();
+            let inferred_type = TypeEnvironment::new().infer_type(&pt);
+            assert_eq!(inferred_type.unwrap(), correct);
+        }
+    }
 }

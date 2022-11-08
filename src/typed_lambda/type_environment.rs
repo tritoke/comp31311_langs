@@ -90,6 +90,7 @@ impl TypeEnvironment {
     }
 
     /// Attempt to infer the type of the Preterm
+    /// inferring a type == determining a type from an empty type environment
     /// ```
     /// use comp31311_langs::typed_lambda::{TypeEnvironment, Preterm, Type};
     /// use comp31311_langs::lambda::Variable;
@@ -97,20 +98,22 @@ impl TypeEnvironment {
     /// let [f, x] = ['f', 'x'].map(Variable::new);
     /// let a = Type::raw('a');
     /// let pt: Preterm = r"\f:a->a.\x:a.fx".parse().unwrap();
-    /// let correct: Type = "(a->a)->a".parse().unwrap();
+    /// let correct: Type = "(a->a)->a->a".parse().unwrap();
     /// let inferred = TypeEnvironment::new().infer_type(&pt);
     /// assert_eq!(inferred, Some(correct));
-    ///
     /// ```
     pub fn infer_type(&mut self, pt: &Preterm) -> Option<Type> {
         let out = match pt {
+            // t:τ
             Preterm::Var(v) => self.current_assumption(v),
+            // \x:σ.t:σ->τ, t:τ
             Preterm::Abs(v, ty, t) => {
                 self.assume(*v, ty.clone());
                 let inferred = self.infer_type(t);
                 self.pop_assumption(v);
                 Some(Type::function(ty.clone(), inferred?))
             }
+            // f:σ->τ, t:σ, ft:τ
             Preterm::App(s, t) => {
                 let st = self.infer_type(s)?;
                 let tt = self.infer_type(t);
