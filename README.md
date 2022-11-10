@@ -23,3 +23,6 @@ comp31311_langs on  main [?] is 📦 v0.1.0 via 🦀 v1.65.0
 ➜ z out.pdf
 ```
 
+This results in the following when rendered with default `latex` + `xcolor`:
+
+![](https://github.com/tritoke/comp31311_langs/blob/main/resources/coloured_latex.jpg?raw=true)
