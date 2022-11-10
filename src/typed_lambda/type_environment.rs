@@ -119,7 +119,7 @@ impl TypeEnvironment {
                 let tt = self.infer_type(t);
                 match st {
                     Type::Function(_, target) => match tt {
-                        Some(x) if &x == &*target => Some(*target),
+                        Some(x) if x == *target => Some(*target),
                         None => Some(*target),
                         _ => None,
                     },
@@ -127,12 +127,6 @@ impl TypeEnvironment {
                 }
             }
         };
-        eprint!("[infer_type] self={self}, pt={pt}");
-        if let Some(ref o) = out {
-            eprintln!(", out=Some({o})");
-        } else {
-            eprintln!(", out=None");
-        }
         out
     }
 }

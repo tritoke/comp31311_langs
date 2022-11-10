@@ -1,6 +1,7 @@
 use chumsky::{error::Simple, prelude::*, Parser};
 use std::fmt;
 use std::hash::Hash;
+use std::str::FromStr;
 
 /// enum to allow writing variables as either x / x' / x''
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -78,5 +79,13 @@ impl Variable {
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.c, "'".repeat(self.primes as usize))
+    }
+}
+
+impl FromStr for Variable {
+    type Err = Vec<Simple<char>>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Variable::parser().then_ignore(end()).parse(s)
     }
 }

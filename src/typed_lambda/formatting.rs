@@ -1,7 +1,6 @@
 // Module to keep all of the formatting code in one place so it doesn't clutter up term.rs
 
-use crate::lambda::Variable;
-use crate::typed_lambda::{Preterm, Type};
+use crate::typed_lambda::Preterm;
 use std::fmt;
 
 // struct to hold the left hand side of an application while formatting

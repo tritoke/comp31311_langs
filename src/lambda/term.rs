@@ -155,7 +155,7 @@ impl Term {
             // bcVar
             Term::Var(_) => self == t,
             // scAbs
-            Term::Abs(v, t_inner) => self == &Term::Var(*v) || self.is_subterm(&t_inner),
+            Term::Abs(v, t_inner) => self == &Term::Var(*v) || self.is_subterm(t_inner),
             // scApp
             Term::App(t1, t2) => self.is_subterm(t1) || self.is_subterm(t2),
         }

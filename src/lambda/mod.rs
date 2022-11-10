@@ -3,6 +3,9 @@ mod term;
 mod variable;
 mod vars;
 
+/// Module holding all the code related to formatting a Term using LaTeX
+pub mod latex;
+
 pub use term::Term;
 pub use variable::Variable;
 pub use vars::Vars;

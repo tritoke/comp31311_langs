@@ -1,7 +1,6 @@
 use crate::lambda::Variable;
 use crate::typed_lambda::{Type, TypeEnvironment};
 use chumsky::{error::Simple, prelude::*, Parser};
-use core::fmt;
 use std::hash::Hash;
 use std::str::FromStr;
 
@@ -103,10 +102,7 @@ impl Preterm {
                 .then_ignore(just('.'))
                 .then(term.clone())
                 .map(|((v, ty), t): ((Variable, Type), Preterm)| Preterm::abs(v, ty, t));
-            let sc_app = atom
-                .clone()
-                .then(atom.or(sc_abs.clone()).clone().repeated())
-                .foldl(Preterm::app);
+            let sc_app = atom.clone().then(atom.repeated()).foldl(Preterm::app);
 
             sc_app.or(sc_abs)
         })
@@ -119,12 +115,12 @@ impl Preterm {
             // bcVar
             Preterm::Var(v) => gamma.current_assumption(v) == Some(ty),
             // scAbs
-            Preterm::Abs(v, ty, t) => {
+            Preterm::Abs(v, ty, _t) => {
                 gamma.assume(*v, ty.clone());
                 todo!()
             }
             // scApp
-            Preterm::App(t1, t2) => {
+            Preterm::App(_t1, _t2) => {
                 todo!()
             }
         }

@@ -85,14 +85,13 @@ impl Type {
                 .map(Type::raw);
             let bracketed_type = typ.delimited_by(just('('), just(')'));
             let atom = plain_var.clone().or(bracketed_type.clone());
-            let function = atom
-                .clone()
+
+            // function
+            atom.clone()
                 .then_ignore(just("->"))
                 .repeated()
                 .then(atom)
-                .foldr(Type::function);
-
-            function
+                .foldr(Type::function)
         })
     }
 }

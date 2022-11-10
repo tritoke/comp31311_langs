@@ -4,35 +4,27 @@ use crate::lambda::Term;
 use std::fmt;
 
 // struct to hold the left hand side of an application while formatting
-pub(super) struct Left<'a>(&'a Term);
+pub(super) struct Left<'a>(pub &'a Term);
 
 impl<'a> fmt::Display for Left<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             Term::Var(v) => write!(f, "{v}"),
             Term::Abs(v, t) => write!(f, "(λ{v}.{t})"),
-            Term::App(t1, t2) => {
-                let l1 = Left(t1);
-                let l2 = Left(t2);
-                write!(f, "{l1}{l2}")
-            }
+            Term::App(t1, t2) => write!(f, "{}{}", Left(t1), Left(t2)),
         }
     }
 }
 
 // struct to hold the right hand side of an application while formatting
-pub(super) struct Right<'a>(&'a Term);
+pub(super) struct Right<'a>(pub &'a Term);
 
 impl<'a> fmt::Display for Right<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             Term::Var(v) => write!(f, "{v}"),
             Term::Abs(v, t) => write!(f, "λ{v}.{t}"),
-            Term::App(t1, t2) => {
-                let l = Left(t1);
-                let r = Right(t2);
-                write!(f, "({l}{r})")
-            }
+            Term::App(t1, t2) => write!(f, "({}{})", Left(t1), Right(t2)),
         }
     }
 }
