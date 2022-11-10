@@ -3,6 +3,9 @@ mod preterm;
 mod r#type;
 mod type_environment;
 
+/// Module holding all the code related to formatting a Preterm using LaTeX
+pub mod latex;
+
 pub use preterm::Preterm;
 pub use r#type::Type;
 pub use type_environment::TypeEnvironment;
@@ -33,6 +36,7 @@ mod tests {
 
     mod parsing {
         use super::*;
+        use crate::lambda::Variable;
 
         #[test]
         fn test_raw_type() {
@@ -71,6 +75,53 @@ mod tests {
                 typ!(typ!('g') => typ!('h') => typ!('i'))
             );
             do_type_test!(s, correct);
+        }
+
+        #[test]
+        fn test_parses_type_correctly() {
+            let s = r"\x:a.y";
+            let pt: Preterm = s.parse().unwrap();
+            let correct = Preterm::abs(
+                Variable::new('x'),
+                typ!('a'),
+                Preterm::Var(Variable::new('y')),
+            );
+            assert_eq!(correct, pt);
+        }
+
+        #[test]
+        fn test_parses_nexted_type_correctly() {
+            let s = r"\x:a.\x:b.y";
+            let pt: Preterm = s.parse().unwrap();
+            let correct = Preterm::abs(
+                Variable::new('x'),
+                typ!('a'),
+                Preterm::abs(
+                    Variable::new('x'),
+                    typ!('b'),
+                    Preterm::var(Variable::new('y')),
+                ),
+            );
+            assert_eq!(correct, pt);
+        }
+
+        #[test]
+        fn test_parses_nested_application_correctly() {
+            let s = r"(\x:a.x)\y:b.y";
+            let pt: Preterm = s.parse().unwrap();
+            let correct = Preterm::app(
+                Preterm::abs(
+                    Variable::new('x'),
+                    typ!('a'),
+                    Preterm::var(Variable::new('x')),
+                ),
+                Preterm::abs(
+                    Variable::new('y'),
+                    typ!('b'),
+                    Preterm::var(Variable::new('y')),
+                ),
+            );
+            assert_eq!(correct, pt);
         }
     }
 

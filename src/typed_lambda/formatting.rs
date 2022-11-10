@@ -4,7 +4,7 @@ use crate::typed_lambda::Preterm;
 use std::fmt;
 
 // struct to hold the left hand side of an application while formatting
-pub(super) struct Left<'a>(&'a Preterm);
+pub(super) struct Left<'a>(pub &'a Preterm);
 
 impl<'a> fmt::Display for Left<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -21,7 +21,7 @@ impl<'a> fmt::Display for Left<'a> {
 }
 
 // struct to hold the right hand side of an application while formatting
-pub(super) struct Right<'a>(&'a Preterm);
+pub(super) struct Right<'a>(pub &'a Preterm);
 
 impl<'a> fmt::Display for Right<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

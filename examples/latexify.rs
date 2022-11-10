@@ -1,11 +1,21 @@
 use clap::Parser;
-use comp31311_langs::lambda::{latex::ColourMapping, Term, Variable};
+use comp31311_langs::{
+    lambda::{
+        latex::{ColourMapping, FormatLatex},
+        Term, Variable,
+    },
+    typed_lambda::Preterm,
+};
 
 #[derive(Debug, Parser, Clone)]
 struct Args {
     /// The term to output in colour
     #[arg(short, long)]
-    term: String,
+    term: Option<String>,
+
+    /// The preterm to output in colour
+    #[arg(short, long, conflicts_with = "term")]
+    preterm: Option<String>,
 
     /// The colours to use to format the term
     /// format: <variable>:<depth>:<colour>
@@ -21,7 +31,6 @@ struct Args {
 #[rustfmt::skip]
 fn main() {
     let args: Args = Args::parse();
-    let term: Term = args.term.parse().expect("Failed to parse term");
 
     let mut colour_map = ColourMapping::new();
     
@@ -46,8 +55,17 @@ fn main() {
             (_, Err(e)) => eprintln!("Mapping {mapping:?} has invalid depth - {:?} - {e:?}", parts[1]),
         }
     }
+    
+    let latex = if let Some(term) = args.term {
+        let t: Term = term.parse().expect("Failed to parse term.");
+        t.format_latex(&colour_map)
+    } else if let Some(preterm) = args.preterm {
+        let pt: Preterm = preterm.parse().expect("Failed to parse preterm.");
+        pt.format_latex(&colour_map)
+    } else {
+        panic!("Either --term or --preterm must be specified.");
+    };
 
-    let latex = term.format_latex(&colour_map);
     println!("{latex}");
     if args.output_document {
         std::fs::write(
@@ -56,7 +74,7 @@ fn main() {
             \\documentclass{{article}}\n\
             \\usepackage{{xcolor}}\n\
             \\begin{{document}}\n\
-                ${latex}$\n\
+            ${latex}$\n\
             \\end{{document}}\n\
             "),
         )

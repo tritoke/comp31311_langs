@@ -102,7 +102,10 @@ impl Preterm {
                 .then_ignore(just('.'))
                 .then(term.clone())
                 .map(|((v, ty), t): ((Variable, Type), Preterm)| Preterm::abs(v, ty, t));
-            let sc_app = atom.clone().then(atom.repeated()).foldl(Preterm::app);
+            let sc_app = atom
+                .clone()
+                .then(atom.or(sc_abs.clone()).clone().repeated())
+                .foldl(Preterm::app);
 
             sc_app.or(sc_abs)
         })
